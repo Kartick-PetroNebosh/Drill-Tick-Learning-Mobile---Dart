@@ -1,0 +1,115 @@
+# Subsea Kill Sheet — Flutter
+
+A single-file Flutter implementation of the **IWCF Subsea BOP Vertical Well Kill Sheet** (API Field Units), combining an interactive mobile screen and a pixel-accurate A4 PDF export in one self-contained Dart file.
+
+---
+
+## What it does
+
+- Provides a full **kill-sheet entry form** split into 8 collapsible sections
+- **Calculates live** as you type — KMW, ICP, FCP, CLF, InitDyn CP, MAASP, volumes, strokes, times
+- Exports a properly formatted **IWCF A4 PDF** (2 pages) via share sheet
+- Saves and restores up to **5 named slots** stored as JSON on-device
+- Renders a **live Subsea well diagram** (marine riser, choke line, casing shoe, open hole, BOP) that updates as you type
+
+---
+
+## Sections
+
+| # | Section | Description |
+|---|---|---|
+| 1 | Formation Strength Data | FST, Mud Weight at Test, Max Allowable MW (C), Initial MAASP |
+| 2 | Current Well Data | Marine riser, choke line, mud density, casing shoe, hole data — with a live subsea well diagram |
+| 3 | Pump Data | Pump displacement, SPM, slow-pump Riser/Choke pressure loss, auto-calculated CLF |
+| 4 | Volumetric Data & Pump Strokes | Drill string, open hole annulus, casing annulus, choke line, active surface, marine riser × DP |
+| 5 | Kick Data & Kill Mud Weight | SIDPP, SICP, Pit Gain, KMW formula |
+| 6 | Circulating Pressures | ICP, FCP, L (ICP−FCP), L/100 strokes |
+| 7 | Initial Dynamic Casing Pressure | IntDyn CP at Kill Pump Rate = SICP − CLF |
+| 8 | Step-Down Chart | Auto-generated pressure step-down table and graph |
+
+---
+
+## Formulas used
+Max Allowable MW (C)       =  MWT + FST / (Shoe TVD × 0.052)           [round down, 1 dp]
+Initial MAASP              =  [(C) − Current MW] × Shoe TVD × 0.052    [round down, whole]
+Kill Mud Weight (KMW)      =  MW + SIDPP / (Hole TVD × 0.052)          [round up,   1 dp]
+Choke Line Friction (CLF)  =  Choke Line Pressure − Riser Pressure
+ICP                        =  Riser Dynamic Pressure Loss + SIDPP
+FCP                        =  (KMW / Current MW) × Riser DPL
+L                          =  ICP − FCP
+L / 100 strokes            =  L / DS Total Strokes × 100
+InitDyn CP at KPR          =  SICP − CLF
+Volume                     =  Length × Capacity
+Strokes                    =  Volume / Pump Displacement                [ceiling]
+Time (min)                 =  Strokes / SPM                            [ceiling]
+
+---
+
+## Key Subsea differences from Surface sheet
+
+| Parameter | Surface | Subsea |
+|---|---|---|
+| BOP location | Surface | Seabed |
+| Pressure loss term | K (drill-string only) | L (accounts for choke line) |
+| Extra lengths | — | Marine Riser, Choke Line |
+| Choke Line Friction | Not applicable | CLF = Choke − Riser pressure |
+| Initial Dynamic Casing Pressure | Not applicable | IntDyn CP = SICP − CLF |
+| Volume sections | DS, OH, Csg annulus | DS, OH, Csg annulus, Choke line, Marine Riser × DP |
+| Kill TVD reference | Hole TVD | Hole TVD (KMW), Shoe TVD (MAASP) |
+
+---
+
+## Dependencies
+```yaml
+dependencies:
+  pdf: ^3.x.x
+  share_plus: ^7.x.x
+  path_provider: ^2.x.x
+```
+
+Asset required:
+assets/images/subsea_well_dia.png   # subsea schematic used in PDF right panel
+
+---
+
+## File structure
+
+Everything lives in **`subsea_kill_sheet_screen.dart`**:
+SubseaKillSheetPdfData         — immutable data model passed to the PDF builder
+PDF constants / fonts          — colours, border weights, Helvetica variants
+PDF builder functions          — header, formation, pump data, right panel/diagram,
+volume table, kill-sheet page 2 with step-down graph
+_generateSubseaKillSheetPdf()  — assembles the 2-page A4 PDF, returns Uint8List
+SubseaKillSheetScreen          — StatefulWidget entry point
+_SubseaKillSheetScreenState    — all state, controllers, calcs, save/load, UI
+_SubseaWellDiagramPainter      — CustomPainter for the live subsea well schematic
+_StepDownChartPainter          — CustomPainter for the step-down graph
+_SubseaInlineDatePicker        — overlay calendar dropdown
+_SubseaSlotPickerDialog        — 5-slot save/open selector dialog
+_SubseaSlotLabelDialog         — name-entry dialog for save slots
+
+---
+
+## Usage
+```dart
+Navigator.push(
+  context,
+  MaterialPageRoute(builder: (_) => const SubseaKillSheetScreen()),
+);
+```
+
+No constructor arguments needed — all state is managed internally.
+
+---
+
+## Notes
+
+- Built for **personal learning** based on IWCF kill-sheet methodology.
+- Not intended for official, certified, or commercial well-control use.
+- PDF layout targets **A4 portrait** at standard margins.
+- All calculations follow **API field units** (ppg, psi, feet, barrels, bbl/ft).
+- The subsea diagram painter draws five colour-coded depth lines: Red = Marine Riser, Blue = Hole TVD, Orange = Casing Shoe TVD, Green = Open Hole, Violet = Choke Line.
+
+---
+
+*© Prasanaa Kartick T*
